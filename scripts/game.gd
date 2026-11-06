@@ -74,6 +74,10 @@ func _input(event: InputEvent) -> void:
 				_start_game()
 			elif screen == "complete":
 				_continue_after_level()
+			elif screen == "campaign_complete":
+				selected_world = 0
+				selected_level = 0
+				_start_game()
 		elif event.keycode == KEY_ESCAPE:
 			if screen == "playing":
 				touch_pointers.clear()
@@ -132,6 +136,14 @@ func _handle_pointer(point: Vector2, pressed: bool, pointer_id: int = 0) -> void
 		elif pressed and Rect2(330, 425, 300, 46).has_point(point):
 			screen = "level_select"
 			queue_redraw()
+		return
+	if screen == "campaign_complete":
+		if pressed and Rect2(330, 350, 300, 58).has_point(point):
+			selected_world = 0
+			selected_level = 0
+			_start_game()
+		elif pressed and Rect2(330, 422, 300, 50).has_point(point):
+			_open_world_select()
 		return
 	if screen == "paused":
 		if pressed:
@@ -434,7 +446,7 @@ func _continue_after_level() -> void:
 		screen = "level_select"
 		queue_redraw()
 	else:
-		screen = "level_select"
+		screen = "campaign_complete"
 		queue_redraw()
 
 func _restart_level() -> void:
@@ -484,6 +496,8 @@ func _draw() -> void:
 			_draw_pause_screen()
 		"complete":
 			_draw_completion_screen()
+		"campaign_complete":
+			_draw_campaign_complete_screen()
 	_draw_particles()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -627,3 +641,15 @@ func _draw_completion_screen() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(0, 238), "DEATHS: %02d" % deaths, HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#a7abb4"))
 	_draw_button(Rect2(330, 355, 300, 58), "CONTINUE", true)
 	_draw_button(Rect2(330, 425, 300, 46), "LEVEL SELECT")
+
+
+func _draw_campaign_complete_screen() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color("#11141a"))
+	draw_rect(Rect2(150, 88, 660, 365), Color(0.07, 0.08, 0.10, 0.90))
+	draw_rect(Rect2(150, 88, 660, 365), Color("#e5a13a"), false, 2.0)
+	draw_string(ThemeDB.fallback_font, Vector2(0, 160), "CAMPAIGN COMPLETE", HORIZONTAL_ALIGNMENT_CENTER, 960, 16, Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 235), "YOU OUTPLAYED THE DEVIL.", HORIZONTAL_ALIGNMENT_CENTER, 960, 36, Color("#f2f0e8"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 275), "20 LEVELS. NO MERCY.", HORIZONTAL_ALIGNMENT_CENTER, 960, 16, Color("#a7abb4"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 310), "TOTAL DEATHS: %02d" % deaths, HORIZONTAL_ALIGNMENT_CENTER, 960, 14, Color("#858b96"))
+	_draw_button(Rect2(330, 350, 300, 58), "PLAY AGAIN", true)
+	_draw_button(Rect2(330, 422, 300, 50), "WORLD SELECT")
