@@ -197,6 +197,7 @@ func _on_trap_activated(trap: DevilTrap) -> void:
 		return
 	match trap.trap_type:
 		"spikes":
+			trap.disarm()
 			revealed_spikes.append(Rect2(trap.position - Vector2(32, 12), Vector2(64, 24)))
 			toast = "YOU WERE WARNED. (YOU WEREN'T.)"
 			toast_time = 1.2
@@ -246,7 +247,7 @@ func _respawn() -> void:
 	if player != null and is_instance_valid(player):
 		player.revive(Vector2(72, 430))
 		for trap in traps:
-			if is_instance_valid(trap):
+			if is_instance_valid(trap) and trap.trap_type != "spikes":
 				trap.armed = true
 				trap.monitoring = true
 	queue_redraw()
