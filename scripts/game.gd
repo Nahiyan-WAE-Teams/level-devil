@@ -121,6 +121,7 @@ func _build_level() -> void:
 		platforms.append(_make_platform(platform_rect))
 	player = PLAYER_SCENE_SCRIPT.new() as DevilPlayer
 	player.name = "Player"
+	player.z_index = 2
 	player.position = Vector2(72, 430)
 	player.controls = self
 	player.died.connect(_on_player_died)
@@ -157,6 +158,7 @@ func _clear_level() -> void:
 func _make_platform(rect: Rect2) -> StaticBody2D:
 	var body := StaticBody2D.new()
 	body.position = rect.position + rect.size * 0.5
+	body.z_index = -1
 	var shape := CollisionShape2D.new()
 	var rectangle := RectangleShape2D.new()
 	rectangle.size = rect.size
