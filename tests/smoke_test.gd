@@ -62,6 +62,25 @@ func _run() -> void:
 		quit(1)
 		return
 
+	game.call("_handle_pointer", Vector2(72, 474), true, 1)
+	game.call("_handle_pointer", Vector2(174, 474), true, 2)
+	if not game.get("touch_left") or not game.get("touch_right"):
+		push_error("Two simultaneous fingers must control both movement directions")
+		quit(1)
+		return
+	game.call("_handle_pointer", Vector2(72, 474), false, 1)
+	if game.get("touch_left") or not game.get("touch_right"):
+		push_error("Releasing one finger must not cancel another finger's control")
+		quit(1)
+		return
+	game.call("_handle_pointer", Vector2(858, 474), true, 3)
+	if not game.get("jump_just_pressed"):
+		push_error("The jump touch zone must register a press")
+		quit(1)
+		return
+	game.call("_handle_pointer", Vector2(858, 474), false, 3)
+	game.call("_handle_pointer", Vector2(174, 474), false, 2)
+
 	var pause_event := InputEventKey.new()
 	pause_event.keycode = KEY_ESCAPE
 	pause_event.pressed = true
