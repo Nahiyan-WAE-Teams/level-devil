@@ -25,7 +25,7 @@ The game uses a landscape 960×540 logical viewport. Touch controls are drawn in
 
 ## Current gameplay
 
-- Two themed worlds with five levels each.
+- Two themed worlds with ten levels each (20 playable levels total).
 - World and level selection with progression locks.
 - Player movement, jump buffering and coyote-time assistance.
 - Hidden spikes, collapsing platforms and falling blocks.
@@ -33,7 +33,9 @@ The game uses a landscape 960×540 logical viewport. Touch controls are drawn in
 - Fake exits, death counter, instant respawn and restart.
 - Pause menu and level-completion flow.
 - Local progress saving.
-- Animated procedural character with running, blinking, squash-and-stretch, and trap-effect colors.
+- Animated procedural character with running, airborne poses, blinking, squash-and-stretch, and trap-effect colors.
+- Original generated ambient music loop and jump, trap, death, and completion sound effects.
+- Simultaneous multi-finger movement and jump input on Android.
 - Animated trap artwork, moving saw blades, death/exit particle bursts, and subtle screen shake.
 - Layered industrial backdrops, framed HUD, and larger mobile control zones.
 - Procedural visuals with no downloaded asset dependency.
@@ -63,12 +65,12 @@ With Godot 4.4.1 available on PATH:
 ```sh
 godot --headless --editor --path . --quit
 godot --headless --path . --script tests/catalog_test.gd --quit-after 180
-godot --headless --path . --script tests/smoke_test.gd --quit-after 180
+godot --headless --path . --script tests/smoke_test.gd --quit-after 180\ngodot --headless --path . --script tests/audio_test.gd --quit-after 180
 ```
 
-GitHub Actions runs the same import and headless test checks on pushes and pull requests to `main`.
+GitHub Actions runs import, catalog, gameplay, and audio checks on pushes and pull requests to `main`.
 
-## Adding levels
+## Android APK\n\nAn Android debug export preset is included in `export_presets.cfg`. The `Android debug APK` workflow exports an arm64 APK for device testing and uploads it as the `level-devil-android-debug` artifact. Run it from the Actions tab with **Run workflow**, or push a game change to `main`. The build uses a CI-generated debug signing key and is for testing, not Play Store release signing.\n\nThe game requests no Internet permission and keeps progress locally on the device. Android export is landscape-only.\n\n## Adding levels
 
 Edit `scripts/level_catalog.gd`. Add a level dictionary to a world's `levels` array. Each level supports:
 
@@ -87,4 +89,4 @@ Edit `scripts/level_catalog.gd`. Add a level dictionary to a world's `levels` ar
 
 ## Release status
 
-The project is a playable development build, not a finished commercial release. Android APK export and real-device testing are still required before calling it device-verified. Further polish should include authored sound/music, accessibility settings, improved trap telegraphs and additional level packs.
+The project is a playable development build, not a finished commercial release. Android APK export and real-device testing are still required before calling it device-verified. Further polish should include hand-authored sprite sheets, accessibility settings, improved trap telegraphs, and real-device performance testing.
