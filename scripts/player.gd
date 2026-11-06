@@ -17,8 +17,15 @@ var alive := true
 var reverse_time := 0.0
 var gravity_flip_time := 0.0
 var gravity_direction := 1.0
+var run_phase := 0.0
+var body_bob := 0.0
+var squash := Vector2.ONE
+var blink_timer := 2.5
+var blink_closed := false
 
 func _ready() -> void:
+	collision_layer = 1
+	collision_mask = 1
 	var shape := CollisionShape2D.new()
 	var capsule := CapsuleShape2D.new()
 	capsule.radius = 13.0
@@ -26,43 +33,47 @@ func _ready() -> void:
 	shape.shape = capsule
 	shape.position = Vector2(0, -21)
 	add_child(shape)
+
+func _process(delta: float) -> void:
+	blink_timer -= delta
+	if blink_timer <= 0.0:
+		blink_closed = not blink_closed
+		blink_timer = 0.10 if blink_closed else randf_range(2.0, 4.5)
+	if alive and absf(velocity.x) > 12.0 and is_on_floor():
+		run_phase += delta * 13.0
+		body_bob = sin(run_phase * 2.0) * 1.8
+	else:
+		body_bob = move_toward(body_bob, 0.0, delta * 12.0)
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
 	if not alive:
 		return
-
 	reverse_time = maxf(0.0, reverse_time - delta)
 	gravity_flip_time = maxf(0.0, gravity_flip_time - delta)
 	gravity_direction = -1.0 if gravity_flip_time > 0.0 else 1.0
-
 	var direction := 0.0
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		direction -= 1.0
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		direction += 1.0
-
 	if controls != null:
 		if controls.touch_left:
 			direction -= 1.0
 		if controls.touch_right:
 			direction += 1.0
-
 	if reverse_time > 0.0:
 		direction *= -1.0
-
 	if direction != 0.0:
 		facing = int(sign(direction))
 		velocity.x = direction * RUN_SPEED
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, RUN_SPEED * 8.0 * delta)
-
 	if gravity_direction > 0.0 and is_on_floor():
 		coyote_timer = COYOTE_TIME
 	else:
 		coyote_timer = maxf(0.0, coyote_timer - delta)
 		velocity.y += GRAVITY * gravity_direction * delta
-
 	if Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
 		jump_buffer = JUMP_BUFFER
 	elif controls != null and controls.jump_just_pressed:
@@ -70,13 +81,16 @@ func _physics_process(delta: float) -> void:
 		controls.jump_just_pressed = false
 	else:
 		jump_buffer = maxf(0.0, jump_buffer - delta)
-
 	if jump_buffer > 0.0 and coyote_timer > 0.0 and gravity_direction > 0.0:
 		velocity.y = JUMP_VELOCITY
 		jump_buffer = 0.0
 		coyote_timer = 0.0
-
+		squash = Vector2(0.78, 1.25)
 	move_and_slide()
+	if is_on_floor() and absf(velocity.y) < 20.0:
+		squash = squash.lerp(Vector2.ONE, delta * 12.0)
+	else:
+		squash = squash.lerp(Vector2(1.08, 0.92), delta * 5.0)
 	if global_position.y > 700.0 or global_position.y < -180.0:
 		die()
 
@@ -100,16 +114,30 @@ func revive(at: Vector2) -> void:
 	reverse_time = 0.0
 	gravity_flip_time = 0.0
 	gravity_direction = 1.0
+	squash = Vector2(0.7, 1.3)
 	queue_redraw()
 
 func _draw() -> void:
-	var body_color := Color("#f2f0e8")
+	var body_color := Color("#eee9df")
 	if reverse_time > 0.0:
 		body_color = Color("#e5a13a")
 	elif gravity_flip_time > 0.0:
-		body_color = Color("#7cb8d8")
-	draw_rect(Rect2(-11, -38, 22, 30), body_color)
-	draw_rect(Rect2(-10, -8, 9, 8), Color("#e3a33a"))
-	draw_rect(Rect2(2, -8, 9, 8), Color("#e3a33a"))
-	draw_rect(Rect2(facing * 2, -29, 4, 4), Color("#17191f"))
-	draw_rect(Rect2(-12, -40, 24, 3), Color("#ffffff"))
+		body_color = Color("#8cc7dc")
+	draw_set_transform(Vector2(0, body_bob), 0.0, Vector2(squash.x, squash.y))
+	var stride := sin(run_phase) * 5.0 if absf(velocity.x) > 12.0 and is_on_floor() else 0.0
+	draw_rect(Rect2(-9 - stride * 0.35, -13, 7, 12), Color("#c58b42"))
+	draw_rect(Rect2(2 + stride * 0.35, -13, 7, 12), Color("#c58b42"))
+	draw_rect(Rect2(-11 - stride, -4, 10, 5), Color("#222630"))
+	draw_rect(Rect2(2 + stride, -4, 10, 5), Color("#222630"))
+	draw_rect(Rect2(-12, -35, 24, 24), body_color)
+	draw_colored_polygon(PackedVector2Array([Vector2(-11, -29), Vector2(12, -31), Vector2(9, -10), Vector2(-9, -10)]), body_color)
+	draw_rect(Rect2(-12, -38, 24, 4), Color("#343943"))
+	draw_colored_polygon(PackedVector2Array([Vector2(-8, -35), Vector2(8, -35), Vector2(13, -30), Vector2(-7, -29)]), Color("#d95d55"))
+	draw_line(Vector2(8, -31), Vector2(17, -26), Color("#d95d55"), 3.0)
+	draw_circle(Vector2(0, -43), 10.5, Color("#e8c5a3"))
+	draw_colored_polygon(PackedVector2Array([Vector2(-10, -45), Vector2(-8, -54), Vector2(2, -56), Vector2(10, -50), Vector2(9, -43), Vector2(4, -48), Vector2(-3, -47)]), Color("#292832"))
+	if not blink_closed:
+		draw_circle(Vector2(facing * 4.0, -43), 1.5, Color("#17191f"))
+	else:
+		draw_line(Vector2(2, -43), Vector2(6, -43), Color("#17191f"), 1.2)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
