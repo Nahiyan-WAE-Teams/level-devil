@@ -50,5 +50,31 @@ func _run() -> void:
 		quit(1)
 		return
 
+	var player: DevilPlayer = game.get("player")
+	player.apply_trap_effect("reverse", 2.0)
+	if player.reverse_time < 1.9:
+		push_error("Reverse-control effect did not activate")
+		quit(1)
+		return
+	player.apply_trap_effect("gravity", 2.0)
+	if player.gravity_flip_time < 1.9:
+		push_error("Gravity effect did not activate")
+		quit(1)
+		return
+
+	var pause_event := InputEventKey.new()
+	pause_event.keycode = KEY_ESCAPE
+	pause_event.pressed = true
+	game.call("_input", pause_event)
+	if game.get("screen") != "paused":
+		push_error("Escape must open the pause screen")
+		quit(1)
+		return
+	game.call("_input", pause_event)
+	if game.get("screen") != "playing":
+		push_error("Escape must resume from the pause screen")
+		quit(1)
+		return
+
 	print("LEVEL DEVIL gameplay smoke test passed")
 	quit(0)
