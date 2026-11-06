@@ -25,16 +25,31 @@ var fake_door_visible := true
 var toast := ""
 var toast_time := 0.0
 var completion_text := ""
+var screen_time := 0.0
+var shake_time := 0.0
+var shake_strength := 0.0
+var particles: Array[Dictionary] = []
 
 func _ready() -> void:
 	_load_progress()
 	queue_redraw()
 
 func _process(delta: float) -> void:
+	screen_time += delta
 	if toast_time > 0.0:
 		toast_time -= delta
 		if toast_time <= 0.0:
 			toast = ""
+	if shake_time > 0.0:
+		shake_time = maxf(0.0, shake_time - delta)
+	for index in range(particles.size() - 1, -1, -1):
+		var particle: Dictionary = particles[index]
+		particle["position"] = particle["position"] + particle["velocity"] * delta
+		particle["velocity"] = particle["velocity"] + Vector2(0, 280) * delta
+		particle["life"] = float(particle["life"]) - delta
+		particles[index] = particle
+		if float(particle["life"]) <= 0.0:
+			particles.remove_at(index)
 	queue_redraw()
 
 func _physics_process(_delta: float) -> void:
@@ -55,9 +70,11 @@ func _input(event: InputEvent) -> void:
 				_continue_after_level()
 		elif event.keycode == KEY_ESCAPE:
 			if screen == "playing":
-				paused = not paused
+				paused = true
+				screen = "paused"
 			elif screen == "paused":
 				paused = false
+				screen = "playing"
 		elif event.keycode == KEY_R and screen == "playing":
 			_restart_level()
 		queue_redraw()
@@ -334,25 +351,36 @@ func _nearest_platform(at: Vector2) -> StaticBody2D:
 
 func _on_player_died() -> void:
 	deaths += 1
+	shake_time = 0.28
+	shake_strength = 8.0
+	_spawn_burst(player.global_position, Color("#e65b52"), 18)
 	toast = "TRY AGAIN. THE DEVIL IS PATIENT."
 	toast_time = 1.0
 	_respawn()
 
 func _respawn() -> void:
 	await get_tree().create_timer(0.48).timeout
-	if screen != "playing" or player == null or not is_instance_valid(player):
+	if screen != "playing":
 		return
-	player.revive(Vector2(72, 430))
-	for trap in traps:
-		if is_instance_valid(trap):
-			trap.armed = true
-			trap.monitoring = true
+	var discovered_spikes := revealed_spikes.duplicate()
+	_build_level()
+	revealed_spikes = discovered_spikes
+	if is_instance_valid(exit_area):
+		exit_area.monitoring = true
+	fake_door_visible = true
 	queue_redraw()
+
+func _spawn_burst(at: Vector2, tint: Color, amount: int = 14) -> void:
+	for index in range(amount):
+		var angle := TAU * float(index) / float(amount) + randf_range(-0.2, 0.2)
+		var speed := randf_range(55.0, 210.0)
+		particles.append({"position": at, "velocity": Vector2(cos(angle), sin(angle)) * speed, "life": randf_range(0.28, 0.68), "max_life": 0.68, "size": randf_range(2.0, 5.0), "color": tint})
 
 func _on_exit_entered(body: Node2D) -> void:
 	if body != player or door_open or screen != "playing":
 		return
 	door_open = true
+	_spawn_burst(Vector2(890, 390), Color("#e5a13a"), 28)
 	var global_index := CATALOG.global_level_index(selected_world, selected_level)
 	highest_completed = maxi(highest_completed, global_index)
 	_save_progress()
