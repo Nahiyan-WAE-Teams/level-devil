@@ -23,7 +23,7 @@ const WORLDS := [
 			{"name": "BACKWARDS DAY", "hint": "LEFT IS THE NEW RIGHT.", "platforms": [Rect2(0, 430, 960, 110)], "traps": [{"type": "reverse", "rect": Rect2(390, 385, 80, 90)}]},
 			{"name": "CEILING WALKER", "hint": "GRAVITY IS HAVING A DAY OFF.", "platforms": [Rect2(0, 430, 260, 110), Rect2(330, 430, 630, 110)], "traps": [{"type": "gravity", "rect": Rect2(440, 385, 90, 90)}]},
 			{"name": "MOVING TARGET", "hint": "WAIT FOR THE FLOOR TO COME TO YOU.", "platforms": [Rect2(0, 430, 250, 110), Rect2(700, 430, 260, 110)], "moving_platforms": [{"rect": Rect2(390, 365, 110, 24), "distance": 95.0, "speed": 1.5}], "traps": [{"type": "fake_exit", "rect": Rect2(850, 350, 70, 80)}]},
-			{"name": "DEVIL'S DUE", "hint": "EVERY TRICK YOU LEARNED. AT ONCE.", "platforms": [Rect2(0, 430, 230, 110), Rect2(320, 430, 220, 110), Rect2(650, 430, 310, 110)], "moving_platforms": [{"rect": Rect2(245, 365, 75, 22), "distance": 30.0, "speed": 2.0}], "traps": [{"type": "saw", "rect": Rect2(390, 375, 42, 42)}, {"type": "reverse", "rect": Rect2(480, 385, 70, 90)}, {"type": "falling", "rect": Rect2(730, 315, 72, 115}]}
+			{"name": "DEVIL'S DUE", "hint": "EVERY TRICK YOU LEARNED. AT ONCE.", "platforms": [Rect2(0, 430, 230, 110), Rect2(320, 430, 220, 110), Rect2(650, 430, 310, 110)], "moving_platforms": [{"rect": Rect2(245, 365, 75, 22), "distance": 30.0, "speed": 2.0}], "traps": [{"type": "saw", "rect": Rect2(390, 375, 42, 42)}, {"type": "reverse", "rect": Rect2(480, 385, 70, 90)}, {"type": "falling", "rect": Rect2(730, 315, 72, 115)}]}
 		]
 	}
 ]
