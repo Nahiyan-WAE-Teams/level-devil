@@ -83,6 +83,8 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = maxf(0.0, jump_buffer - delta)
 	if jump_buffer > 0.0 and coyote_timer > 0.0 and gravity_direction > 0.0:
 		velocity.y = JUMP_VELOCITY
+		if controls != null and controls.has_method("play_game_sfx"):
+			controls.call("play_game_sfx", "jump")
 		jump_buffer = 0.0
 		coyote_timer = 0.0
 		squash = Vector2(0.78, 1.25)
@@ -124,18 +126,26 @@ func _draw() -> void:
 	elif gravity_flip_time > 0.0:
 		body_color = Color("#8cc7dc")
 	draw_set_transform(Vector2(0, body_bob), 0.0, Vector2(squash.x, squash.y))
-	var stride := sin(run_phase) * 5.0 if absf(velocity.x) > 12.0 and is_on_floor() else 0.0
+	var moving := absf(velocity.x) > 12.0 and is_on_floor()
+	var stride := sin(run_phase) * 5.0 if moving else 0.0
+	var arm_swing := sin(run_phase + PI) * 4.0 if moving else 0.0
+	var airborne := not is_on_floor()
+	var arm_raise := -7.0 if airborne and velocity.y < 0.0 else (3.0 if airborne else 0.0)
+	draw_ellipse(Vector2(0, 1), Vector2(15, 3), Color(0, 0, 0, 0.24))
+	draw_line(Vector2(-7, -25), Vector2(-12 - arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
+	draw_line(Vector2(7, -25), Vector2(12 + arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
 	draw_rect(Rect2(-9 - stride * 0.35, -13, 7, 12), Color("#c58b42"))
 	draw_rect(Rect2(2 + stride * 0.35, -13, 7, 12), Color("#c58b42"))
-	draw_rect(Rect2(-11 - stride, -4, 10, 5), Color("#222630"))
-	draw_rect(Rect2(2 + stride, -4, 10, 5), Color("#222630"))
+	draw_rect(Rect2(-12 - stride, -4, 11, 5), Color("#222630"))
+	draw_rect(Rect2(2 + stride, -4, 11, 5), Color("#222630"))
 	draw_rect(Rect2(-12, -35, 24, 24), body_color)
 	draw_colored_polygon(PackedVector2Array([Vector2(-11, -29), Vector2(12, -31), Vector2(9, -10), Vector2(-9, -10)]), body_color)
 	draw_rect(Rect2(-12, -38, 24, 4), Color("#343943"))
 	draw_colored_polygon(PackedVector2Array([Vector2(-8, -35), Vector2(8, -35), Vector2(13, -30), Vector2(-7, -29)]), Color("#d95d55"))
-	draw_line(Vector2(8, -31), Vector2(17, -26), Color("#d95d55"), 3.0)
+	draw_line(Vector2(8, -31), Vector2(17, -26 + sin(run_phase * 0.7) * 2.0), Color("#d95d55"), 3.0)
 	draw_circle(Vector2(0, -43), 10.5, Color("#e8c5a3"))
 	draw_colored_polygon(PackedVector2Array([Vector2(-10, -45), Vector2(-8, -54), Vector2(2, -56), Vector2(10, -50), Vector2(9, -43), Vector2(4, -48), Vector2(-3, -47)]), Color("#292832"))
+	draw_circle(Vector2(-6, -37), 2.2, Color("#e8c5a3"))
 	if not blink_closed:
 		draw_circle(Vector2(facing * 4.0, -43), 1.5, Color("#17191f"))
 	else:
