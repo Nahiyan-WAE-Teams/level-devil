@@ -22,5 +22,8 @@ jobs:
       - name: Import and parse project
         run: godot --headless --editor --path . --quit
 
+      - name: Run level catalog tests
+        run: godot --headless --path . --script tests/catalog_test.gd --quit-after 180
+
       - name: Run gameplay smoke test
         run: godot --headless --path . --script tests/smoke_test.gd --quit-after 180
