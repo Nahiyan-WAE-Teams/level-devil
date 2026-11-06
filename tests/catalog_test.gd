@@ -9,10 +9,10 @@ func _run() -> void:
 	assert(LevelCatalog.level_count(1) == 10, "World two must contain ten levels")
 	assert(LevelCatalog.level_count(2) == 0, "Unknown worlds must have no levels")
 	assert(LevelCatalog.is_level_unlocked(0, 0, 0), "The first level must always be unlocked")
-	assert(not LevelCatalog.is_level_unlocked(0, 1, 0), "Later levels must remain locked until progress")
-	assert(LevelCatalog.is_level_unlocked(0, 1, 1), "Progress must unlock the next level")
-	assert(LevelCatalog.is_level_unlocked(1, 0, 4), "A completed first world must unlock the next world")
-	assert(not LevelCatalog.is_level_unlocked(1, 0, 3), "An incomplete first world must not unlock the next world")
+	assert(not LevelCatalog.is_level_unlocked(0, 1, -1), "Later levels must remain locked until the first level is cleared")
+	assert(LevelCatalog.is_level_unlocked(0, 1, 0), "Clearing the first level must unlock the next level")
+	assert(LevelCatalog.is_level_unlocked(1, 0, 9), "A completed first world must unlock the next world")
+	assert(not LevelCatalog.is_level_unlocked(1, 0, 8), "An incomplete first world must not unlock the next world")
 	assert(LevelCatalog.global_level_index(1, 9) == 19, "The final level must be level twenty")
 	for world_index in range(LevelCatalog.world_count()):
 		for level_index in range(LevelCatalog.level_count(world_index)):
