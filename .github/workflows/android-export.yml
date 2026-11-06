@@ -71,13 +71,20 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
+      - name: Verify Android export prerequisites
+        run: |
+          test -s "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_debug.apk"
+          test -d "$ANDROID_HOME/platforms/android-34"
+          test -d "$ANDROID_HOME/build-tools/34.0.0"
+          cat "$HOME/.config/godot/editor_settings-4.tres"
+
       - name: Import and validate project
         run: godot --headless --editor --path . --quit
 
       - name: Export Android debug APK
         run: |
           mkdir -p build
-          godot --headless --path . --export-debug "Android Debug APK" build/level-devil-debug.apk
+          godot --headless --verbose --path . --export-debug "Android Debug APK" build/level-devil-debug.apk
           test -s build/level-devil-debug.apk
 
       - name: Upload installable APK
