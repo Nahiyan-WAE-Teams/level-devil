@@ -52,7 +52,7 @@ func _run() -> void:
 
 	var player: DevilPlayer = game.get("player")
 	var sprite: AnimatedSprite2D = player.get_node_or_null("Sprite")
-	if sprite == null or not sprite.sprite_frames.has_animation("run") or not sprite.sprite_frames.has_animation("death"):
+	if sprite == null or not sprite.sprite_frames.has_animation("run") or not sprite.sprite_frames.has_animation("blink") or not sprite.sprite_frames.has_animation("death"):
 		push_error("Player must load its sprite atlas animations")
 		quit(1)
 		return
