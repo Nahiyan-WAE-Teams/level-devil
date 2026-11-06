@@ -52,10 +52,6 @@ func _process(delta: float) -> void:
 		fade_tint.a = 1.0 - fade
 		sprite.modulate = fade_tint
 		return
-	blink_timer -= delta
-	if blink_timer <= 0.0:
-		blink_closed = not blink_closed
-		blink_timer = 0.10 if blink_closed else randf_range(2.0, 4.5)
 	if absf(velocity.x) > 12.0 and is_on_floor():
 		run_phase += delta * 13.0
 		body_bob = sin(run_phase * 2.0) * 1.8
@@ -66,8 +62,20 @@ func _process(delta: float) -> void:
 		next_animation = "jump" if velocity.y < 0.0 else "fall"
 	elif absf(velocity.x) > 12.0:
 		next_animation = "run"
-	if sprite.animation != next_animation:
+	if sprite.animation == "blink":
+		if next_animation != "idle":
+			sprite.play(next_animation)
+		elif not sprite.is_playing():
+			sprite.play("idle")
+	elif sprite.animation != next_animation:
 		sprite.play(next_animation)
+	if sprite.animation == "idle":
+		blink_timer -= delta
+		if blink_timer <= 0.0:
+			sprite.play("blink")
+			blink_timer = randf_range(2.0, 4.5)
+	else:
+		blink_timer = randf_range(2.0, 4.5)
 	sprite.flip_h = facing < 0
 	if reverse_time > 0.0:
 		sprite.modulate = Color("#e5a13a")
@@ -82,6 +90,7 @@ func _create_sprite_frames() -> SpriteFrames:
 	if frames.has_animation("default"):
 		frames.remove_animation("default")
 	_add_animation(frames, texture, "idle", 0, 4, 5.0, true)
+	_add_animation(frames, texture, "blink", 0, 1, 10.0, false, 4)
 	_add_animation(frames, texture, "run", 1, 6, 12.0, true)
 	_add_animation(frames, texture, "jump", 2, 4, 10.0, false)
 	_add_animation(frames, texture, "fall", 2, 2, 5.0, true, 2)
