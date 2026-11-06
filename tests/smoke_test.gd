@@ -51,6 +51,11 @@ func _run() -> void:
 		return
 
 	var player: DevilPlayer = game.get("player")
+	var sprite: AnimatedSprite2D = player.get_node_or_null("Sprite")
+	if sprite == null or not sprite.sprite_frames.has_animation("run") or not sprite.sprite_frames.has_animation("death"):
+		push_error("Player must load its sprite atlas animations")
+		quit(1)
+		return
 	player.apply_trap_effect("reverse", 2.0)
 	if player.reverse_time < 1.9:
 		push_error("Reverse-control effect did not activate")
