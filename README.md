@@ -25,7 +25,7 @@ The game uses a landscape 960×540 logical viewport. Touch controls support simu
 
 ## Current gameplay
 
-- Two themed worlds with ten levels each (20 playable levels total).
+- Two themed worlds with ten levels each (20 playable levels total, with a campaign ending and replay flow).
 - World and level selection with progression locks.
 - Player movement, jump buffering and coyote-time assistance.
 - Hidden spikes, collapsing platforms and falling blocks.
@@ -33,17 +33,19 @@ The game uses a landscape 960×540 logical viewport. Touch controls support simu
 - Fake exits, death counter, quick respawn and restart.
 - Pause menu and level-completion flow.
 - Local progress saving.
-- Animated procedural character with running, airborne poses, blinking, squash-and-stretch, and trap-effect colors.
+- Original 64×64 SVG sprite atlas with idle, run, jump, fall, and death-tumble animations.
 - Original generated ambient music loop and jump, trap, death, and completion sound effects.
 - Animated trap artwork, moving saw blades, death/exit particle bursts, and subtle screen shake.
 - Layered industrial backdrops, framed HUD, and large mobile control zones.
-- No downloaded asset dependency.
+- Original artwork and generated audio; no third-party asset downloads.
 
 ## Project structure
 
 ```
 project.godot
 export_presets.cfg
+assets/
+  player_sheet.svg
 scenes/
   main.tscn
 scripts/
