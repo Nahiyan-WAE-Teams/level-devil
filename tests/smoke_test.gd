@@ -5,23 +5,33 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var packed_scene: PackedScene = load("res://scenes/main.tscn")
-	assert(packed_scene != null, "Main scene must load")
+	if packed_scene == null:
+		push_error("Main scene failed to load")
+		quit(1)
+		return
 
 	var game: Node = packed_scene.instantiate()
 	root.add_child(game)
-	await process_frame
-
 	game.call("_start_game")
-	await process_frame
 
-	assert(game.get_node_or_null("Player") != null, "Starting the game must create a player")
-	assert(game.get("platforms").size() == 2, "The first room must build its two platforms")
-	assert(game.get("traps").size() == 1, "The first room must build its hidden spike trap")
+	if game.get_node_or_null("Player") == null:
+		push_error("Starting the game did not create a player")
+		quit(1)
+		return
+	if game.get("platforms").size() != 2:
+		push_error("The first room should create two platforms")
+		quit(1)
+		return
+	if game.get("traps").size() != 1:
+		push_error("The first room should create one hidden spike trap")
+		quit(1)
+		return
 
 	game.call("_restart_level")
-	await process_frame
-	assert(game.get_node_or_null("Player") != null, "Restarting must restore the player")
-	assert(game.get("deaths") == 0, "A manual restart must not count as a death")
+	if game.get_node_or_null("Player") == null or game.get("deaths") != 0:
+		push_error("Restart did not restore the player cleanly")
+		quit(1)
+		return
 
 	print("LEVEL DEVIL smoke test passed")
 	quit(0)
