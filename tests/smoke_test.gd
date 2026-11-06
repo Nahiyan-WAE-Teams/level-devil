@@ -4,6 +4,11 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
+	if int(ProjectSettings.get_setting("display/window/handheld/orientation")) != DisplayServer.SCREEN_LANDSCAPE:
+		push_error("The mobile project must request landscape orientation")
+		quit(1)
+		return
+
 	var packed_scene: PackedScene = load("res://scenes/main.tscn")
 	if packed_scene == null:
 		push_error("Main scene failed to load")
