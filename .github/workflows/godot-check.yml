@@ -27,3 +27,6 @@ jobs:
 
       - name: Run gameplay smoke test
         run: godot --headless --path . --script tests/smoke_test.gd --quit-after 180
+
+      - name: Run audio tests
+        run: godot --headless --path . --script tests/audio_test.gd --quit-after 180
