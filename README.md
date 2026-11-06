@@ -33,6 +33,9 @@ The game uses a landscape 960×540 logical viewport. Touch controls are drawn in
 - Fake exits, death counter, instant respawn and restart.
 - Pause menu and level-completion flow.
 - Local progress saving.
+- Animated procedural character with running, blinking, squash-and-stretch, and trap-effect colors.
+- Animated trap artwork, moving saw blades, death/exit particle bursts, and subtle screen shake.
+- Layered industrial backdrops, framed HUD, and larger mobile control zones.
 - Procedural visuals with no downloaded asset dependency.
 
 ## Project structure
@@ -84,4 +87,4 @@ Edit `scripts/level_catalog.gd`. Add a level dictionary to a world's `levels` ar
 
 ## Release status
 
-The project is a playable development build, not a finished commercial release. Android APK export and real-device testing are still required before calling it device-verified. Further polish should include character animation, sound/music, accessibility settings, improved trap telegraphs and additional level packs.
+The project is a playable development build, not a finished commercial release. Android APK export and real-device testing are still required before calling it device-verified. Further polish should include authored sound/music, accessibility settings, improved trap telegraphs and additional level packs.
