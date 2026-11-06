@@ -95,5 +95,18 @@ func _run() -> void:
 		quit(1)
 		return
 
+	player.die()
+	if player.alive:
+		push_error("A defeated player must enter the death state")
+		quit(1)
+		return
+	player._process(0.20)
+	if player.death_time <= 0.0 or player.modulate.a >= 1.0:
+		push_error("The player death animation must advance and fade")
+		quit(1)
+		return
+
 	print("LEVEL DEVIL gameplay smoke test passed")
+	game.queue_free()
+	await process_frame
 	quit(0)
