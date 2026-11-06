@@ -131,7 +131,7 @@ func _draw() -> void:
 	var arm_swing := sin(run_phase + PI) * 4.0 if moving else 0.0
 	var airborne := not is_on_floor()
 	var arm_raise := -7.0 if airborne and velocity.y < 0.0 else (3.0 if airborne else 0.0)
-	draw_ellipse(Vector2(0, 1), Vector2(15, 3), Color(0, 0, 0, 0.24))
+	draw_circle(Vector2(0, 1), 11.0, Color(0, 0, 0, 0.18))
 	draw_line(Vector2(-7, -25), Vector2(-12 - arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
 	draw_line(Vector2(7, -25), Vector2(12 + arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
 	draw_rect(Rect2(-9 - stride * 0.35, -13, 7, 12), Color("#c58b42"))
