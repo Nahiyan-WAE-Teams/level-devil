@@ -3,6 +3,7 @@ extends Node2D
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const TRAP_SCRIPT = preload("res://scripts/trap.gd")
 const CATALOG = preload("res://scripts/level_catalog.gd")
+const AUDIO_SCRIPT = preload("res://scripts/audio_manager.gd")
 const SAVE_PATH := "user://level_devil_progress.cfg"
 const VIEW_SIZE := Vector2(960, 540)
 
@@ -15,6 +16,8 @@ var paused := false
 var touch_left := false
 var touch_right := false
 var jump_just_pressed := false
+var touch_pointers: Dictionary = {}
+var audio_manager: Node
 var player: DevilPlayer
 var platforms: Array[StaticBody2D] = []
 var traps: Array[DevilTrap] = []
@@ -32,6 +35,9 @@ var particles: Array[Dictionary] = []
 
 func _ready() -> void:
 	_load_progress()
+	audio_manager = AUDIO_SCRIPT.new()
+	audio_manager.name = "AudioManager"
+	add_child(audio_manager)
 	queue_redraw()
 
 func _process(delta: float) -> void:
@@ -70,6 +76,8 @@ func _input(event: InputEvent) -> void:
 				_continue_after_level()
 		elif event.keycode == KEY_ESCAPE:
 			if screen == "playing":
+				touch_pointers.clear()
+				_refresh_touch_state()
 				paused = true
 				screen = "paused"
 			elif screen == "paused":
@@ -80,13 +88,13 @@ func _input(event: InputEvent) -> void:
 		queue_redraw()
 
 	if event is InputEventScreenTouch:
-		_handle_pointer(event.position, event.pressed)
-	elif event is InputEventScreenDrag:
-		_handle_pointer(event.position, true)
+		_handle_pointer(event.position, event.pressed, event.index)
+	elif event is InputEventScreenDrag and screen == "playing":
+		_handle_pointer(event.position, true, event.index)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_handle_pointer(event.position, event.pressed)
+		_handle_pointer(event.position, event.pressed, -1)
 
-func _handle_pointer(point: Vector2, pressed: bool) -> void:
+func _handle_pointer(point: Vector2, pressed: bool, pointer_id: int = 0) -> void:
 	if screen == "title":
 		if pressed and Rect2(330, 340, 300, 64).has_point(point):
 			_open_world_select()
@@ -142,14 +150,37 @@ func _handle_pointer(point: Vector2, pressed: bool) -> void:
 		return
 
 	if pressed and Rect2(884, 16, 58, 58).has_point(point):
+		touch_pointers.clear()
+		_refresh_touch_state()
 		paused = true
 		screen = "paused"
 		queue_redraw()
 		return
-	touch_left = pressed and point.y > 390.0 and point.x < 130.0
-	touch_right = pressed and point.y > 390.0 and point.x >= 130.0 and point.x < 250.0
-	if pressed and point.y > 390.0 and point.x > 760.0:
+	if not pressed:
+		touch_pointers.erase(pointer_id)
+		_refresh_touch_state()
+		return
+	var previous_zone := str(touch_pointers.get(pointer_id, ""))
+	var next_zone := "none"
+	if point.y > 390.0 and point.x < 130.0:
+		next_zone = "left"
+	elif point.y > 390.0 and point.x < 250.0:
+		next_zone = "right"
+	elif point.y > 390.0 and point.x > 760.0:
+		next_zone = "jump"
+	touch_pointers[pointer_id] = next_zone
+	_refresh_touch_state()
+	if next_zone == "jump" and previous_zone != "jump":
 		jump_just_pressed = true
+
+func _refresh_touch_state() -> void:
+	var active_zones: Array = touch_pointers.values()
+	touch_left = active_zones.has("left")
+	touch_right = active_zones.has("right")
+
+func play_game_sfx(kind: String) -> void:
+	if audio_manager != null and audio_manager.has_method("play_sfx"):
+		audio_manager.call("play_sfx", kind)
 
 func _open_world_select() -> void:
 	screen = "world_select"
@@ -164,6 +195,8 @@ func _open_level_select() -> void:
 func _start_game() -> void:
 	if not CATALOG.is_level_unlocked(selected_world, selected_level, highest_completed):
 		return
+	touch_pointers.clear()
+	_refresh_touch_state()
 	screen = "playing"
 	paused = false
 	_build_level()
@@ -284,6 +317,7 @@ func _build_exit() -> void:
 func _on_trap_activated(trap: DevilTrap) -> void:
 	if player == null or not player.alive:
 		return
+	play_game_sfx("trap")
 
 	match trap.trap_type:
 		"spikes":
@@ -350,6 +384,7 @@ func _nearest_platform(at: Vector2) -> StaticBody2D:
 	return closest
 
 func _on_player_died() -> void:
+	play_game_sfx("death")
 	deaths += 1
 	shake_time = 0.28
 	shake_strength = 8.0
@@ -380,6 +415,7 @@ func _on_exit_entered(body: Node2D) -> void:
 	if body != player or door_open or screen != "playing":
 		return
 	door_open = true
+	play_game_sfx("complete")
 	_spawn_burst(Vector2(890, 390), Color("#e5a13a"), 28)
 	var global_index := CATALOG.global_level_index(selected_world, selected_level)
 	highest_completed = maxi(highest_completed, global_index)
@@ -402,6 +438,8 @@ func _continue_after_level() -> void:
 		queue_redraw()
 
 func _restart_level() -> void:
+	touch_pointers.clear()
+	_refresh_touch_state()
 	screen = "playing"
 	paused = false
 	_build_level()
@@ -418,9 +456,9 @@ func _save_progress() -> void:
 	config.save(SAVE_PATH)
 
 func _level_card_rect(index: int) -> Rect2:
-	var column := index % 2
-	var row := int(index / 2)
-	return Rect2(190 + column * 310, 135 + row * 112, 270, 88)
+	var column := index % 5
+	var row := int(index / 5)
+	return Rect2(40 + column * 180, 190 + row * 145, 164, 112)
 
 func _draw() -> void:
 	if screen == "playing" or screen == "paused":
@@ -485,7 +523,7 @@ func _draw_title_screen() -> void:
 	draw_string(ThemeDB.fallback_font, Vector2(0, 296), "DEVIL", HORIZONTAL_ALIGNMENT_CENTER, 960, 78, Color("#e5a13a"))
 	draw_rect(Rect2(390, 315, 180, 2), Color("#e5a13a"))
 	_draw_button(Rect2(330, 350, 300, 62), "START GAME", true)
-	draw_string(ThemeDB.fallback_font, Vector2(0, 478), "10 ROOMS  /  2 WORLDS  /  ABSOLUTELY NO TRUST", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 478), "20 LEVELS  /  2 WORLDS  /  ABSOLUTELY NO TRUST", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
 
 func _draw_world_select() -> void:
 	_draw_back_button()
@@ -501,7 +539,7 @@ func _draw_world_select() -> void:
 		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 72), "WORLD  %02d" % (index + 1), HORIZONTAL_ALIGNMENT_LEFT, 300, 14, accent)
 		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 116), str(world["name"]), HORIZONTAL_ALIGNMENT_LEFT, 300, 24, Color("#f2f0e8") if unlocked else Color("#8a8f98"))
 		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 150), str(world["subtitle"]), HORIZONTAL_ALIGNMENT_LEFT, 300, 13, Color("#a7abb4"))
-		var status := "5 LEVELS  /  AVAILABLE" if unlocked else "LOCKED  /  CLEAR WORLD 01"
+		var status := "10 LEVELS  /  AVAILABLE" if unlocked else "LOCKED  /  CLEAR WORLD 01"
 		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 190), status, HORIZONTAL_ALIGNMENT_LEFT, 310, 12, accent)
 	draw_string(ThemeDB.fallback_font, Vector2(0, 465), "COMPLETE LEVELS TO UNLOCK THE NEXT WORLD", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
 
@@ -517,11 +555,11 @@ func _draw_level_select() -> void:
 		var accent := Color("#e5a13a") if unlocked else Color("#4b515b")
 		draw_rect(rect, Color("#20252d") if unlocked else Color("#191d24"))
 		draw_rect(rect, accent, false, 2.0)
-		draw_string(ThemeDB.fallback_font, rect.position + Vector2(18, 31), "%02d" % (index + 1), HORIZONTAL_ALIGNMENT_LEFT, 38, 22, accent)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(12, 28), "%02d" % (index + 1), HORIZONTAL_ALIGNMENT_LEFT, 34, 20, accent)
 		var level: Dictionary = CATALOG.get_level(selected_world, index)
-		draw_string(ThemeDB.fallback_font, rect.position + Vector2(68, 34), str(level["name"]), HORIZONTAL_ALIGNMENT_LEFT, 190, 15, Color("#f2f0e8") if unlocked else Color("#777e89"))
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(12, 55), str(level["name"]), HORIZONTAL_ALIGNMENT_LEFT, 140, 11, Color("#f2f0e8") if unlocked else Color("#777e89"))
 		var state := "CLEARED" if completed else ("TAP TO PLAY" if unlocked else "LOCKED")
-		draw_string(ThemeDB.fallback_font, rect.position + Vector2(68, 62), state, HORIZONTAL_ALIGNMENT_LEFT, 180, 11, accent)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(12, 83), state, HORIZONTAL_ALIGNMENT_LEFT, 140, 10, accent)
 
 func _draw_back_button() -> void:
 	_draw_button(Rect2(28, 24, 120, 46), "BACK", false, false)
