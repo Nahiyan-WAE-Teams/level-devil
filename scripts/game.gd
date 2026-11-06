@@ -1,59 +1,30 @@
 extends Node2D
 
-const PLAYER_SCENE_SCRIPT = preload("res://scripts/player.gd")
+const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const TRAP_SCRIPT = preload("res://scripts/trap.gd")
+const CATALOG = preload("res://scripts/level_catalog.gd")
 const SAVE_PATH := "user://level_devil_progress.cfg"
 const VIEW_SIZE := Vector2(960, 540)
 
-const LEVELS := [
-	{
-		"name": "A FRIENDLY START",
-		"hint": "THE FLOOR LOOKS PERFECTLY SAFE.",
-		"platforms": [Rect2(0, 430, 370, 110), Rect2(430, 430, 530, 110)],
-		"traps": [{"type": "spikes", "rect": Rect2(535, 390, 54, 80)}]
-	},
-	{
-		"name": "TRUST ISSUES",
-		"hint": "SOME FLOORS HAVE A SHORT MEMORY.",
-		"platforms": [Rect2(0, 430, 300, 110), Rect2(360, 430, 250, 110), Rect2(670, 430, 290, 110)],
-		"traps": [{"type": "collapse", "rect": Rect2(430, 400, 74, 60)}]
-	},
-	{
-		"name": "LOOK UP",
-		"hint": "THE CEILING IS PAYING ATTENTION.",
-		"platforms": [Rect2(0, 430, 420, 110), Rect2(480, 430, 480, 110)],
-		"traps": [{"type": "falling", "rect": Rect2(580, 330, 70, 100)}]
-	},
-	{
-		"name": "POINTY BUSINESS",
-		"hint": "THAT EMPTY SPACE ISN'T EMPTY.",
-		"platforms": [Rect2(0, 430, 250, 110), Rect2(310, 430, 250, 110), Rect2(620, 430, 340, 110)],
-		"traps": [{"type": "spikes", "rect": Rect2(385, 390, 64, 80)}, {"type": "collapse", "rect": Rect2(690, 400, 70, 60)}]
-	},
-	{
-		"name": "THE LAST DOOR",
-		"hint": "YOU REALLY THOUGHT IT WAS OVER?",
-		"platforms": [Rect2(0, 430, 320, 110), Rect2(380, 430, 210, 110), Rect2(650, 430, 310, 110)],
-		"traps": [{"type": "falling", "rect": Rect2(710, 320, 76, 110)}, {"type": "spikes", "rect": Rect2(500, 390, 58, 80)}]
-	}
-]
-
-var player: DevilPlayer
-var level_index := 0
+var screen := "title"
+var selected_world := 0
+var selected_level := 0
+var highest_completed := -1
 var deaths := 0
-var best_unlocked := 0
-var started := false
 var paused := false
 var touch_left := false
 var touch_right := false
 var jump_just_pressed := false
+var player: DevilPlayer
 var platforms: Array[StaticBody2D] = []
 var traps: Array[DevilTrap] = []
 var revealed_spikes: Array[Rect2] = []
 var exit_area: Area2D
 var door_open := false
+var fake_door_visible := true
 var toast := ""
 var toast_time := 0.0
+var completion_text := ""
 
 func _ready() -> void:
 	_load_progress()
@@ -67,76 +38,168 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _physics_process(_delta: float) -> void:
-	if not started or paused:
+	if screen != "playing" or paused or player == null:
 		return
-	if player != null and player.global_position.x > 920.0:
-		player.global_position.x = 920.0
-	if player != null and player.global_position.x < 12.0:
-		player.global_position.x = 12.0
+	player.global_position.x = clampf(player.global_position.x, 12.0, 948.0)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if not started and event.keycode in [KEY_ENTER, KEY_SPACE]:
-			_start_game()
-		elif started and event.keycode == KEY_R:
+		if event.keycode in [KEY_ENTER, KEY_SPACE]:
+			if screen == "title":
+				_open_world_select()
+			elif screen == "world_select":
+				_open_level_select()
+			elif screen == "level_select":
+				_start_game()
+			elif screen == "complete":
+				_continue_after_level()
+		elif event.keycode == KEY_ESCAPE:
+			if screen == "playing":
+				paused = not paused
+			elif screen == "paused":
+				paused = false
+		elif event.keycode == KEY_R and screen == "playing":
 			_restart_level()
-		elif started and event.keycode == KEY_ESCAPE:
-			paused = not paused
-			get_tree().paused = paused
-			queue_redraw()
-	if event is InputEventScreenTouch:
-		_handle_touch(event.position, event.pressed)
-	elif event is InputEventScreenDrag:
-		_handle_touch(event.position, true)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_handle_touch(event.position, event.pressed)
+		queue_redraw()
 
-func _handle_touch(point: Vector2, pressed: bool) -> void:
-	if not started:
-		if pressed:
-			_start_game()
+	if event is InputEventScreenTouch:
+		_handle_pointer(event.position, event.pressed)
+	elif event is InputEventScreenDrag:
+		_handle_pointer(event.position, true)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_handle_pointer(event.position, event.pressed)
+
+func _handle_pointer(point: Vector2, pressed: bool) -> void:
+	if screen == "title":
+		if pressed and Rect2(330, 340, 300, 64).has_point(point):
+			_open_world_select()
 		return
-	if paused:
-		if pressed:
-			paused = false
-			get_tree().paused = false
+	if screen == "world_select":
+		if not pressed:
+			return
+		if Rect2(28, 24, 120, 46).has_point(point):
+			screen = "title"
+		elif Rect2(110, 175, 350, 220).has_point(point):
+			selected_world = 0
+			_open_level_select()
+		elif Rect2(500, 175, 350, 220).has_point(point) and CATALOG.is_level_unlocked(1, 0, highest_completed):
+			selected_world = 1
+			_open_level_select()
+		queue_redraw()
+		return
+	if screen == "level_select":
+		if not pressed:
+			return
+		if Rect2(28, 24, 120, 46).has_point(point):
+			screen = "world_select"
+			queue_redraw()
+			return
+		for index in range(CATALOG.level_count(selected_world)):
+			var rect := _level_card_rect(index)
+			if rect.has_point(point) and CATALOG.is_level_unlocked(selected_world, index, highest_completed):
+				selected_level = index
+				_start_game()
+				return
+		return
+	if screen == "complete":
+		if pressed and Rect2(330, 355, 300, 58).has_point(point):
+			_continue_after_level()
+		elif pressed and Rect2(330, 425, 300, 46).has_point(point):
+			screen = "level_select"
 			queue_redraw()
 		return
-	touch_left = pressed and point.x < 145.0 and point.y > 390.0
-	touch_right = pressed and point.x >= 145.0 and point.x < 270.0 and point.y > 390.0
-	if pressed and point.x > 760.0 and point.y > 390.0:
+	if screen == "paused":
+		if pressed:
+			if Rect2(330, 250, 300, 54).has_point(point):
+				paused = false
+				screen = "playing"
+			elif Rect2(330, 318, 300, 54).has_point(point):
+				_restart_level()
+			elif Rect2(330, 386, 300, 54).has_point(point):
+				paused = false
+				screen = "level_select"
+				_clear_level()
+			queue_redraw()
+		return
+	if screen != "playing":
+		return
+
+	if pressed and Rect2(884, 16, 58, 58).has_point(point):
+		paused = true
+		screen = "paused"
+		queue_redraw()
+		return
+	touch_left = pressed and point.y > 390.0 and point.x < 130.0
+	touch_right = pressed and point.y > 390.0 and point.x >= 130.0 and point.x < 250.0
+	if pressed and point.y > 390.0 and point.x > 760.0:
 		jump_just_pressed = true
 
+func _open_world_select() -> void:
+	screen = "world_select"
+	queue_redraw()
+
+func _open_level_select() -> void:
+	if not CATALOG.is_level_unlocked(selected_world, 0, highest_completed):
+		selected_world = 0
+	screen = "level_select"
+	queue_redraw()
+
 func _start_game() -> void:
-	started = true
+	if not CATALOG.is_level_unlocked(selected_world, selected_level, highest_completed):
+		return
+	screen = "playing"
+	paused = false
 	_build_level()
 	queue_redraw()
 
 func _build_level() -> void:
 	_clear_level()
-	paused = false
-	get_tree().paused = false
-	var definition: Dictionary = LEVELS[level_index]
-	for platform_rect: Rect2 in definition["platforms"]:
+	var definition := CATALOG.get_level(selected_world, selected_level)
+	if definition.is_empty():
+		screen = "level_select"
+		return
+
+	for platform_rect: Rect2 in definition.get("platforms", []):
 		platforms.append(_make_platform(platform_rect))
-	player = PLAYER_SCENE_SCRIPT.new() as DevilPlayer
+
+	for moving_data: Dictionary in definition.get("moving_platforms", []):
+		var moving_rect: Rect2 = moving_data["rect"]
+		var moving_body := _make_platform(moving_rect)
+		platforms.append(moving_body)
+		var distance := float(moving_data.get("distance", 80.0))
+		var speed := maxf(0.4, float(moving_data.get("speed", 1.0)))
+		var base_x := moving_body.position.x
+		var tween := create_tween().set_loops()
+		tween.tween_property(moving_body, "position:x", base_x + distance, 1.0 / speed)
+		tween.tween_property(moving_body, "position:x", base_x - distance, 2.0 / speed)
+		tween.tween_property(moving_body, "position:x", base_x, 1.0 / speed)
+
+	player = PLAYER_SCRIPT.new() as DevilPlayer
 	player.name = "Player"
 	player.z_index = 2
 	player.position = Vector2(72, 430)
 	player.controls = self
 	player.died.connect(_on_player_died)
 	add_child(player)
-	for trap_data: Dictionary in definition["traps"]:
+
+	for trap_data: Dictionary in definition.get("traps", []):
 		var trap_rect: Rect2 = trap_data["rect"]
 		var trap := TRAP_SCRIPT.new() as DevilTrap
-		trap.configure(str(trap_data["type"]), trap_rect.size, trap_rect.position + trap_rect.size * 0.5)
+		trap.configure(
+			str(trap_data["type"]),
+			trap_rect.size,
+			trap_rect.position + trap_rect.size * 0.5,
+			float(trap_data.get("distance", 0.0)),
+			float(trap_data.get("speed", 1.0))
+		)
 		trap.activated.connect(_on_trap_activated)
 		add_child(trap)
 		traps.append(trap)
+
 	_build_exit()
-	toast = "LEVEL %02d  /  %s" % [level_index + 1, definition["name"]]
+	var world_data := CATALOG.get_world(selected_world)
+	toast = "%s  /  LEVEL %02d" % [world_data["name"], selected_level + 1]
 	toast_time = 2.0
-	queue_redraw()
 
 func _clear_level() -> void:
 	if player != null and is_instance_valid(player):
@@ -152,8 +215,10 @@ func _clear_level() -> void:
 	traps.clear()
 	if is_instance_valid(exit_area):
 		exit_area.queue_free()
+	exit_area = null
 	revealed_spikes.clear()
 	door_open = false
+	fake_door_visible = true
 
 func _make_platform(rect: Rect2) -> StaticBody2D:
 	var body := StaticBody2D.new()
@@ -164,6 +229,7 @@ func _make_platform(rect: Rect2) -> StaticBody2D:
 	rectangle.size = rect.size
 	shape.shape = rectangle
 	body.add_child(shape)
+
 	var visual := Polygon2D.new()
 	visual.polygon = PackedVector2Array([
 		Vector2(-rect.size.x * 0.5, -rect.size.y * 0.5),
@@ -173,8 +239,12 @@ func _make_platform(rect: Rect2) -> StaticBody2D:
 	])
 	visual.color = Color("#292d35")
 	body.add_child(visual)
+
 	var top_line := Line2D.new()
-	top_line.points = PackedVector2Array([Vector2(-rect.size.x * 0.5, -rect.size.y * 0.5), Vector2(rect.size.x * 0.5, -rect.size.y * 0.5)])
+	top_line.points = PackedVector2Array([
+		Vector2(-rect.size.x * 0.5, -rect.size.y * 0.5),
+		Vector2(rect.size.x * 0.5, -rect.size.y * 0.5)
+	])
 	top_line.width = 4.0
 	top_line.default_color = Color("#e5a13a")
 	body.add_child(top_line)
@@ -197,25 +267,27 @@ func _build_exit() -> void:
 func _on_trap_activated(trap: DevilTrap) -> void:
 	if player == null or not player.alive:
 		return
+
 	match trap.trap_type:
 		"spikes":
 			trap.disarm()
 			revealed_spikes.append(Rect2(trap.position - Vector2(32, 12), Vector2(64, 24)))
-			toast = "YOU WERE WARNED. (YOU WEREN'T.)"
-			toast_time = 1.2
+			toast = "SURPRISE. THE FLOOR HAD TEETH."
+			toast_time = 1.1
 			player.die()
 		"collapse":
 			trap.disarm()
 			var target := _nearest_platform(trap.position)
 			if target != null:
 				var tween := create_tween()
-				tween.tween_property(target, "position:y", target.position.y + 90.0, 0.22)
+				tween.tween_property(target, "position:y", target.position.y + 100.0, 0.25)
 				tween.tween_callback(target.queue_free)
+				platforms.erase(target)
 			toast = "THE FLOOR HAS LEFT THE CHAT."
-			toast_time = 1.2
+			toast_time = 1.1
 		"falling":
 			trap.disarm()
-			var block := _make_platform(Rect2(trap.position.x - 35, -110, 70, 70))
+			var block := _make_platform(Rect2(trap.position.x - 35.0, -110.0, 70.0, 70.0))
 			var tween := create_tween()
 			tween.tween_property(block, "position:y", 445.0, 0.48)
 			tween.tween_callback(func() -> void:
@@ -223,7 +295,29 @@ func _on_trap_activated(trap: DevilTrap) -> void:
 					player.die()
 			)
 			toast = "LOOK UP!"
+			toast_time = 0.9
+		"reverse":
+			trap.disarm()
+			player.apply_trap_effect("reverse", 3.5)
+			toast = "LEFT IS RIGHT. GOOD LUCK."
+			toast_time = 1.2
+		"gravity":
+			trap.disarm()
+			player.apply_trap_effect("gravity", 2.4)
+			toast = "GRAVITY HAS BEEN DISMISSED."
+			toast_time = 1.2
+		"saw":
+			toast = "SHARP. VERY SHARP."
+			toast_time = 0.8
+			player.die()
+		"fake_exit":
+			trap.disarm()
+			fake_door_visible = false
+			if exit_area != null:
+				exit_area.monitoring = false
+			toast = "THAT WASN'T THE EXIT."
 			toast_time = 1.0
+			player.die()
 	queue_redraw()
 
 func _nearest_platform(at: Vector2) -> StaticBody2D:
@@ -246,101 +340,188 @@ func _on_player_died() -> void:
 
 func _respawn() -> void:
 	await get_tree().create_timer(0.48).timeout
-	if player != null and is_instance_valid(player):
-		player.revive(Vector2(72, 430))
-		for trap in traps:
-			if is_instance_valid(trap) and trap.trap_type != "spikes":
-				trap.armed = true
-				trap.monitoring = true
+	if screen != "playing" or player == null or not is_instance_valid(player):
+		return
+	player.revive(Vector2(72, 430))
+	for trap in traps:
+		if is_instance_valid(trap):
+			trap.armed = true
+			trap.monitoring = true
 	queue_redraw()
 
 func _on_exit_entered(body: Node2D) -> void:
-	if body != player or door_open:
+	if body != player or door_open or screen != "playing":
 		return
 	door_open = true
-	best_unlocked = maxi(best_unlocked, mini(level_index + 1, LEVELS.size() - 1))
+	var global_index := CATALOG.global_level_index(selected_world, selected_level)
+	highest_completed = maxi(highest_completed, global_index)
 	_save_progress()
-	if level_index < LEVELS.size() - 1:
-		level_index += 1
-		toast = "DOOR OPEN. NEXT ROOM..."
-		toast_time = 0.8
-		await get_tree().create_timer(0.85).timeout
-		_build_level()
-	else:
-		started = false
-		_clear_level()
-		toast = "YOU ESCAPED. FOR NOW."
-		toast_time = 3.0
+	completion_text = "WORLD CLEARED" if selected_level == CATALOG.level_count(selected_world) - 1 else "LEVEL CLEARED"
+	screen = "complete"
 	queue_redraw()
 
+func _continue_after_level() -> void:
+	if selected_level < CATALOG.level_count(selected_world) - 1:
+		selected_level += 1
+		_start_game()
+	elif selected_world < CATALOG.world_count() - 1 and CATALOG.is_level_unlocked(selected_world + 1, 0, highest_completed):
+		selected_world += 1
+		selected_level = 0
+		screen = "level_select"
+		queue_redraw()
+	else:
+		screen = "level_select"
+		queue_redraw()
+
 func _restart_level() -> void:
+	screen = "playing"
+	paused = false
 	_build_level()
+	queue_redraw()
 
 func _load_progress() -> void:
 	var config := ConfigFile.new()
 	if config.load(SAVE_PATH) == OK:
-		best_unlocked = clampi(int(config.get_value("progress", "unlocked", 0)), 0, LEVELS.size() - 1)
+		highest_completed = int(config.get_value("progress", "highest_completed", -1))
 
 func _save_progress() -> void:
 	var config := ConfigFile.new()
-	config.set_value("progress", "unlocked", best_unlocked)
+	config.set_value("progress", "highest_completed", highest_completed)
 	config.save(SAVE_PATH)
+
+func _level_card_rect(index: int) -> Rect2:
+	var column := index % 2
+	var row := int(index / 2)
+	return Rect2(190 + column * 310, 135 + row * 112, 270, 88)
 
 func _draw() -> void:
 	_draw_backdrop()
-	if not started:
-		_draw_title_screen()
-		return
-	_draw_level_art()
-	_draw_hud()
-	_draw_touch_controls()
-	if paused:
-		draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color(0, 0, 0, 0.72))
-		draw_string(ThemeDB.fallback_font, Vector2(0, 250), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, 960, 38, Color("#f4f1e9"))
-		draw_string(ThemeDB.fallback_font, Vector2(0, 290), "TAP TO RESUME  /  ESC", HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#aaaeb7"))
+	match screen:
+		"title":
+			_draw_title_screen()
+		"world_select":
+			_draw_world_select()
+		"level_select":
+			_draw_level_select()
+		"playing":
+			_draw_level_art()
+			_draw_hud()
+			_draw_touch_controls()
+		"paused":
+			_draw_level_art()
+			_draw_hud()
+			_draw_pause_screen()
+		"complete":
+			_draw_completion_screen()
 
 func _draw_backdrop() -> void:
 	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color("#11141a"))
-	for i in range(24):
+	for i in range(28):
 		var x := float((i * 173) % 960)
-		var y := float((i * 97) % 400)
-		draw_circle(Vector2(x, y), 1.2, Color(0.75, 0.78, 0.84, 0.18))
-	draw_rect(Rect2(0, 0, 960, 6), Color("#e5a13a"))
+		var y := float((i * 97) % 520)
+		draw_circle(Vector2(x, y), 1.1, Color(0.75, 0.78, 0.84, 0.15))
+	draw_rect(Rect2(0, 0, 960, 5), Color("#e5a13a"))
+	draw_rect(Rect2(0, 535, 960, 5), Color("#272d36"))
 
 func _draw_title_screen() -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(0, 170), "LEVEL", HORIZONTAL_ALIGNMENT_CENTER, 960, 34, Color("#e7e4dc"))
-	draw_string(ThemeDB.fallback_font, Vector2(0, 245), "DEVIL", HORIZONTAL_ALIGNMENT_CENTER, 960, 72, Color("#e5a13a"))
-	draw_string(ThemeDB.fallback_font, Vector2(0, 292), "A VERY NORMAL PLATFORMER", HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#a7abb4"))
-	draw_rect(Rect2(350, 345, 260, 58), Color("#e5a13a"))
-	draw_string(ThemeDB.fallback_font, Vector2(350, 382), "TAP TO PLAY", HORIZONTAL_ALIGNMENT_CENTER, 260, 20, Color("#17191f"))
-	draw_string(ThemeDB.fallback_font, Vector2(0, 470), "MOVE  A / D     JUMP  SPACE     RETRY  R", HORIZONTAL_ALIGNMENT_CENTER, 960, 14, Color("#858b96"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 168), "LEVEL", HORIZONTAL_ALIGNMENT_CENTER, 960, 34, Color("#e7e4dc"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 245), "DEVIL", HORIZONTAL_ALIGNMENT_CENTER, 960, 76, Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 292), "THE EXIT IS NEVER THE WHOLE STORY", HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#a7abb4"))
+	_draw_button(Rect2(330, 340, 300, 64), "PLAY")
+	draw_string(ThemeDB.fallback_font, Vector2(0, 470), "A TRAP PLATFORMER  /  DESIGNED TO SURPRISE", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
+
+func _draw_world_select() -> void:
+	_draw_back_button()
+	draw_string(ThemeDB.fallback_font, Vector2(0, 100), "CHOOSE YOUR WORLD", HORIZONTAL_ALIGNMENT_CENTER, 960, 28, Color("#f2f0e8"))
+	for index in range(CATALOG.world_count()):
+		var world: Dictionary = CATALOG.get_world(index)
+		var rect := Rect2(110 + index * 390, 175, 350, 220)
+		var unlocked := CATALOG.is_level_unlocked(index, 0, highest_completed)
+		var accent: Color = world["accent"] if unlocked else Color("#555b65")
+		draw_rect(rect, Color("#20252d"))
+		draw_rect(rect, accent, false, 2.0)
+		draw_rect(Rect2(rect.position, Vector2(rect.size.x, 6)), accent)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 72), "WORLD  %02d" % (index + 1), HORIZONTAL_ALIGNMENT_LEFT, 300, 14, accent)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 116), str(world["name"]), HORIZONTAL_ALIGNMENT_LEFT, 300, 24, Color("#f2f0e8") if unlocked else Color("#8a8f98"))
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 150), str(world["subtitle"]), HORIZONTAL_ALIGNMENT_LEFT, 300, 13, Color("#a7abb4"))
+		var status := "5 LEVELS  /  AVAILABLE" if unlocked else "LOCKED  /  CLEAR WORLD 01"
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(24, 190), status, HORIZONTAL_ALIGNMENT_LEFT, 310, 12, accent)
+	draw_string(ThemeDB.fallback_font, Vector2(0, 465), "COMPLETE LEVELS TO UNLOCK THE NEXT WORLD", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
+
+func _draw_level_select() -> void:
+	_draw_back_button()
+	var world: Dictionary = CATALOG.get_world(selected_world)
+	draw_string(ThemeDB.fallback_font, Vector2(0, 88), str(world["name"]), HORIZONTAL_ALIGNMENT_CENTER, 960, 26, Color("#f2f0e8"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 112), str(world["subtitle"]), HORIZONTAL_ALIGNMENT_CENTER, 960, 12, Color("#8f96a2"))
+	for index in range(CATALOG.level_count(selected_world)):
+		var rect := _level_card_rect(index)
+		var unlocked := CATALOG.is_level_unlocked(selected_world, index, highest_completed)
+		var completed := CATALOG.global_level_index(selected_world, index) <= highest_completed
+		var accent := Color("#e5a13a") if unlocked else Color("#4b515b")
+		draw_rect(rect, Color("#20252d") if unlocked else Color("#191d24"))
+		draw_rect(rect, accent, false, 2.0)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(18, 31), "%02d" % (index + 1), HORIZONTAL_ALIGNMENT_LEFT, 38, 22, accent)
+		var level: Dictionary = CATALOG.get_level(selected_world, index)
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(68, 34), str(level["name"]), HORIZONTAL_ALIGNMENT_LEFT, 190, 15, Color("#f2f0e8") if unlocked else Color("#777e89"))
+		var state := "CLEARED" if completed else ("TAP TO PLAY" if unlocked else "LOCKED")
+		draw_string(ThemeDB.fallback_font, rect.position + Vector2(68, 62), state, HORIZONTAL_ALIGNMENT_LEFT, 180, 11, accent)
+
+func _draw_back_button() -> void:
+	_draw_button(Rect2(28, 24, 120, 46), "BACK", false, false)
+
+func _draw_button(rect: Rect2, label: String, selected: bool = false, disabled: bool = false) -> void:
+	var fill := Color("#e5a13a") if selected or not disabled else Color("#303640")
+	var border := Color("#e5a13a") if not disabled else Color("#555b65")
+	draw_rect(rect, fill)
+	draw_rect(rect, border, false, 2.0)
+	draw_string(ThemeDB.fallback_font, rect.position + Vector2(0, rect.size.y * 0.62), label, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 17, Color("#17191f") if not disabled else Color("#858b96"))
 
 func _draw_level_art() -> void:
-	# Exit door and its deliberately reassuring glow.
-	draw_rect(Rect2(866, 344, 48, 86), Color("#d7d2c6"))
-	draw_rect(Rect2(872, 350, 36, 80), Color("#242832"))
-	draw_circle(Vector2(899, 391), 3, Color("#e5a13a"))
+	if fake_door_visible:
+		draw_rect(Rect2(866, 344, 48, 86), Color("#d7d2c6"))
+		draw_rect(Rect2(872, 350, 36, 80), Color("#242832"))
+		draw_circle(Vector2(899, 391), 3, Color("#e5a13a"))
 	for spike_rect in revealed_spikes:
-		for i in range(4):
-			var sx := spike_rect.position.x + float(i) * 16.0
-			draw_colored_polygon(PackedVector2Array([Vector2(sx, spike_rect.end.y), Vector2(sx + 8, spike_rect.position.y), Vector2(sx + 16, spike_rect.end.y)]), Color("#e65b52"))
+		for index in range(4):
+			var sx := spike_rect.position.x + float(index) * 16.0
+			draw_colored_polygon(PackedVector2Array([
+				Vector2(sx, spike_rect.end.y),
+				Vector2(sx + 8, spike_rect.position.y),
+				Vector2(sx + 16, spike_rect.end.y)
+			]), Color("#e65b52"))
 	draw_rect(Rect2(0, 430, 960, 110), Color(0.03, 0.035, 0.045, 0.65))
 
 func _draw_hud() -> void:
-	var definition: Dictionary = LEVELS[level_index]
-	draw_string(ThemeDB.fallback_font, Vector2(28, 42), "LEVEL  %02d" % (level_index + 1), HORIZONTAL_ALIGNMENT_LEFT, 180, 16, Color("#e5a13a"))
-	draw_string(ThemeDB.fallback_font, Vector2(28, 66), str(definition["name"]), HORIZONTAL_ALIGNMENT_LEFT, 400, 13, Color("#e7e4dc"))
-	draw_string(ThemeDB.fallback_font, Vector2(930, 42), "DEATHS  %02d" % deaths, HORIZONTAL_ALIGNMENT_RIGHT, 180, 15, Color("#a7abb4"))
-	draw_string(ThemeDB.fallback_font, Vector2(480, 42), str(definition["hint"]), HORIZONTAL_ALIGNMENT_CENTER, 500, 13, Color("#8c929e"))
+	var world: Dictionary = CATALOG.get_world(selected_world)
+	var definition: Dictionary = CATALOG.get_level(selected_world, selected_level)
+	draw_string(ThemeDB.fallback_font, Vector2(26, 37), "WORLD %02d  /  LEVEL %02d" % [selected_world + 1, selected_level + 1], HORIZONTAL_ALIGNMENT_LEFT, 300, 15, Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(26, 61), str(definition.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, 360, 12, Color("#e7e4dc"))
+	draw_string(ThemeDB.fallback_font, Vector2(480, 39), str(definition.get("hint", "")), HORIZONTAL_ALIGNMENT_CENTER, 480, 12, Color("#8c929e"))
+	draw_string(ThemeDB.fallback_font, Vector2(850, 38), "DEATHS %02d" % deaths, HORIZONTAL_ALIGNMENT_RIGHT, 110, 13, Color("#a7abb4"))
 	if toast_time > 0.0 and toast != "":
-		draw_string(ThemeDB.fallback_font, Vector2(0, 115), toast, HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#f0c16c"))
+		draw_string(ThemeDB.fallback_font, Vector2(0, 110), toast, HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#f0c16c"))
 
 func _draw_touch_controls() -> void:
-	_draw_control(Vector2(72, 478), "‹", touch_left)
-	_draw_control(Vector2(172, 478), "›", touch_right)
-	_draw_control(Vector2(870, 478), "↑", false)
+	_draw_control(Vector2(68, 476), "‹", touch_left)
+	_draw_control(Vector2(168, 476), "›", touch_right)
+	_draw_control(Vector2(865, 476), "↑", false)
+	_draw_button(Rect2(884, 16, 58, 58), "Ⅱ", false, false)
 
 func _draw_control(center: Vector2, label: String, active: bool) -> void:
-	draw_circle(center, 36, Color(0.07, 0.08, 0.10, 0.76))
+	draw_circle(center, 36, Color(0.07, 0.08, 0.10, 0.78))
 	draw_arc(center, 34, 0.0, TAU, 48, Color("#e5a13a") if active else Color(0.72, 0.74, 0.78, 0.55), 2.0)
 	draw_string(ThemeDB.fallback_font, center + Vector2(-13, 10), label, HORIZONTAL_ALIGNMENT_CENTER, 26, 28, Color("#f2f0e8"))
+
+func _draw_pause_screen() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color(0, 0, 0, 0.78))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 190), "PAUSED", HORIZONTAL_ALIGNMENT_CENTER, 960, 36, Color("#f2f0e8"))
+	_draw_button(Rect2(330, 250, 300, 54), "RESUME", true)
+	_draw_button(Rect2(330, 318, 300, 54), "RESTART")
+	_draw_button(Rect2(330, 386, 300, 54), "LEVEL SELECT")
+
+func _draw_completion_screen() -> void:
+	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color("#11141a"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 195), completion_text, HORIZONTAL_ALIGNMENT_CENTER, 960, 34, Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 238), "DEATHS: %02d" % deaths, HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#a7abb4"))
+	_draw_button(Rect2(330, 355, 300, 58), "CONTINUE", true)
+	_draw_button(Rect2(330, 425, 300, 46), "LEVEL SELECT")
