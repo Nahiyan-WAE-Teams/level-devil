@@ -106,7 +106,7 @@ func _run() -> void:
 		quit(1)
 		return
 	player._process(0.20)
-	if player.death_time <= 0.0 or player.modulate.a >= 1.0:
+	if player.death_time <= 0.0 or sprite.modulate.a >= 1.0:
 		push_error("The player death animation must advance and fade")
 		quit(1)
 		return
