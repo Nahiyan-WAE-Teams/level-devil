@@ -23,6 +23,7 @@ var squash := Vector2.ONE
 var blink_timer := 2.5
 var blink_closed := false
 var death_time := 0.0
+var sprite: AnimatedSprite2D
 
 func _ready() -> void:
 	collision_layer = 1
@@ -34,25 +35,68 @@ func _ready() -> void:
 	shape.shape = capsule
 	shape.position = Vector2(0, -21)
 	add_child(shape)
+	sprite = AnimatedSprite2D.new()
+	sprite.name = "Sprite"
+	sprite.position = Vector2(0, -25.6)
+	sprite.scale = Vector2(0.8, 0.8)
+	sprite.sprite_frames = _create_sprite_frames()
+	sprite.play("idle")
+	add_child(sprite)
 
 func _process(delta: float) -> void:
 	if not alive:
 		death_time += delta
 		var fade := clampf(death_time / 0.48, 0.0, 1.0)
 		rotation = lerpf(0.0, TAU * 0.72, fade)
-		modulate.a = 1.0 - fade
-		queue_redraw()
+		var fade_tint := sprite.modulate
+		fade_tint.a = 1.0 - fade
+		sprite.modulate = fade_tint
 		return
 	blink_timer -= delta
 	if blink_timer <= 0.0:
 		blink_closed = not blink_closed
 		blink_timer = 0.10 if blink_closed else randf_range(2.0, 4.5)
-	if alive and absf(velocity.x) > 12.0 and is_on_floor():
+	if absf(velocity.x) > 12.0 and is_on_floor():
 		run_phase += delta * 13.0
 		body_bob = sin(run_phase * 2.0) * 1.8
 	else:
 		body_bob = move_toward(body_bob, 0.0, delta * 12.0)
-	queue_redraw()
+	var next_animation := "idle"
+	if not is_on_floor():
+		next_animation = "jump" if velocity.y < 0.0 else "fall"
+	elif absf(velocity.x) > 12.0:
+		next_animation = "run"
+	if sprite.animation != next_animation:
+		sprite.play(next_animation)
+	sprite.flip_h = facing < 0
+	if reverse_time > 0.0:
+		sprite.modulate = Color("#e5a13a")
+	elif gravity_flip_time > 0.0:
+		sprite.modulate = Color("#8cc7dc")
+	else:
+		sprite.modulate = Color.WHITE
+
+func _create_sprite_frames() -> SpriteFrames:
+	var texture := load("res://assets/player_sheet.svg") as Texture2D
+	var frames := SpriteFrames.new()
+	if frames.has_animation("default"):
+		frames.remove_animation("default")
+	_add_animation(frames, texture, "idle", 0, 4, 5.0, true)
+	_add_animation(frames, texture, "run", 1, 6, 12.0, true)
+	_add_animation(frames, texture, "jump", 2, 4, 10.0, false)
+	_add_animation(frames, texture, "fall", 2, 2, 5.0, true, 2)
+	_add_animation(frames, texture, "death", 3, 6, 12.5, false)
+	return frames
+
+func _add_animation(frames: SpriteFrames, texture: Texture2D, animation_name: String, row: int, count: int, speed: float, looping: bool, start_frame: int = 0) -> void:
+	frames.add_animation(animation_name)
+	frames.set_animation_speed(animation_name, speed)
+	frames.set_animation_loop(animation_name, looping)
+	for frame_index in range(start_frame, start_frame + count):
+		var atlas := AtlasTexture.new()
+		atlas.atlas = texture
+		atlas.region = Rect2(frame_index * 64, row * 64, 64, 64)
+		frames.add_frame(animation_name, atlas)
 
 func _physics_process(delta: float) -> void:
 	if not alive:
@@ -117,7 +161,8 @@ func die() -> void:
 	alive = false
 	death_time = 0.0
 	rotation = 0.0
-	modulate = Color.WHITE
+	sprite.modulate = Color.WHITE
+	sprite.play("death")
 	died.emit()
 
 func revive(at: Vector2) -> void:
@@ -126,42 +171,11 @@ func revive(at: Vector2) -> void:
 	alive = true
 	death_time = 0.0
 	rotation = 0.0
-	modulate = Color.WHITE
+	sprite.modulate = Color.WHITE
+	sprite.play("idle")
 	reverse_time = 0.0
 	gravity_flip_time = 0.0
 	gravity_direction = 1.0
 	squash = Vector2(0.7, 1.3)
 	queue_redraw()
 
-func _draw() -> void:
-	var body_color := Color("#eee9df")
-	if reverse_time > 0.0:
-		body_color = Color("#e5a13a")
-	elif gravity_flip_time > 0.0:
-		body_color = Color("#8cc7dc")
-	draw_set_transform(Vector2(0, body_bob), 0.0, Vector2(squash.x, squash.y))
-	var moving := absf(velocity.x) > 12.0 and is_on_floor()
-	var stride := sin(run_phase) * 5.0 if moving else 0.0
-	var arm_swing := sin(run_phase + PI) * 4.0 if moving else 0.0
-	var airborne := not is_on_floor()
-	var arm_raise := -7.0 if airborne and velocity.y < 0.0 else (3.0 if airborne else 0.0)
-	draw_circle(Vector2(0, 1), 11.0, Color(0, 0, 0, 0.18))
-	draw_line(Vector2(-7, -25), Vector2(-12 - arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
-	draw_line(Vector2(7, -25), Vector2(12 + arm_swing, -15 + arm_raise), Color("#d8b99b"), 5.0)
-	draw_rect(Rect2(-9 - stride * 0.35, -13, 7, 12), Color("#c58b42"))
-	draw_rect(Rect2(2 + stride * 0.35, -13, 7, 12), Color("#c58b42"))
-	draw_rect(Rect2(-12 - stride, -4, 11, 5), Color("#222630"))
-	draw_rect(Rect2(2 + stride, -4, 11, 5), Color("#222630"))
-	draw_rect(Rect2(-12, -35, 24, 24), body_color)
-	draw_colored_polygon(PackedVector2Array([Vector2(-11, -29), Vector2(12, -31), Vector2(9, -10), Vector2(-9, -10)]), body_color)
-	draw_rect(Rect2(-12, -38, 24, 4), Color("#343943"))
-	draw_colored_polygon(PackedVector2Array([Vector2(-8, -35), Vector2(8, -35), Vector2(13, -30), Vector2(-7, -29)]), Color("#d95d55"))
-	draw_line(Vector2(8, -31), Vector2(17, -26 + sin(run_phase * 0.7) * 2.0), Color("#d95d55"), 3.0)
-	draw_circle(Vector2(0, -43), 10.5, Color("#e8c5a3"))
-	draw_colored_polygon(PackedVector2Array([Vector2(-10, -45), Vector2(-8, -54), Vector2(2, -56), Vector2(10, -50), Vector2(9, -43), Vector2(4, -48), Vector2(-3, -47)]), Color("#292832"))
-	draw_circle(Vector2(-6, -37), 2.2, Color("#e8c5a3"))
-	if not blink_closed:
-		draw_circle(Vector2(facing * 4.0, -43), 1.5, Color("#17191f"))
-	else:
-		draw_line(Vector2(2, -43), Vector2(6, -43), Color("#17191f"), 1.2)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
