@@ -423,6 +423,11 @@ func _level_card_rect(index: int) -> Rect2:
 	return Rect2(190 + column * 310, 135 + row * 112, 270, 88)
 
 func _draw() -> void:
+	if screen == "playing" or screen == "paused":
+		var shake := Vector2.ZERO
+		if shake_time > 0.0:
+			shake = Vector2(sin(screen_time * 91.0), cos(screen_time * 73.0)) * shake_strength * (shake_time / 0.28)
+		draw_set_transform(shake, 0.0, Vector2.ONE)
 	_draw_backdrop()
 	match screen:
 		"title":
@@ -441,22 +446,46 @@ func _draw() -> void:
 			_draw_pause_screen()
 		"complete":
 			_draw_completion_screen()
+	_draw_particles()
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _draw_backdrop() -> void:
-	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), Color("#11141a"))
-	for i in range(28):
+	var base := Color("#11141a")
+	if selected_world == 1:
+		base = Color("#151317")
+	draw_rect(Rect2(Vector2.ZERO, VIEW_SIZE), base)
+	for index in range(9):
+		var x := float(index) * 124.0 - 30.0
+		var sway := sin(screen_time * 0.22 + float(index)) * 5.0
+		draw_colored_polygon(PackedVector2Array([Vector2(x + sway, 70), Vector2(x + 76 + sway, 70), Vector2(x + 76 + sway, 430), Vector2(x + sway, 430)]), Color(0.20, 0.23, 0.28, 0.10))
+		draw_line(Vector2(x + 8 + sway, 82), Vector2(x + 8 + sway, 418), Color(0.55, 0.58, 0.64, 0.07), 1.0)
+	for i in range(34):
 		var x := float((i * 173) % 960)
 		var y := float((i * 97) % 520)
 		draw_circle(Vector2(x, y), 1.1, Color(0.75, 0.78, 0.84, 0.15))
+	for index in range(16):
+		var x := float(index) * 64.0
+		draw_line(Vector2(x, 500), Vector2(x - 45, 540), Color(0.42, 0.46, 0.52, 0.10), 1.0)
 	draw_rect(Rect2(0, 0, 960, 5), Color("#e5a13a"))
 	draw_rect(Rect2(0, 535, 960, 5), Color("#272d36"))
+	draw_rect(Rect2(0, 0, 960, 82), Color(0.02, 0.025, 0.035, 0.34))
+
+func _draw_particles() -> void:
+	for particle in particles:
+		var life_ratio := clampf(float(particle["life"]) / float(particle["max_life"]), 0.0, 1.0)
+		var tint: Color = particle["color"]
+		tint.a = life_ratio
+		draw_circle(particle["position"], float(particle["size"]) * life_ratio, tint)
 
 func _draw_title_screen() -> void:
-	draw_string(ThemeDB.fallback_font, Vector2(0, 168), "LEVEL", HORIZONTAL_ALIGNMENT_CENTER, 960, 34, Color("#e7e4dc"))
-	draw_string(ThemeDB.fallback_font, Vector2(0, 245), "DEVIL", HORIZONTAL_ALIGNMENT_CENTER, 960, 76, Color("#e5a13a"))
-	draw_string(ThemeDB.fallback_font, Vector2(0, 292), "THE EXIT IS NEVER THE WHOLE STORY", HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#a7abb4"))
-	_draw_button(Rect2(330, 340, 300, 64), "PLAY")
-	draw_string(ThemeDB.fallback_font, Vector2(0, 470), "A TRAP PLATFORMER  /  DESIGNED TO SURPRISE", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
+	draw_rect(Rect2(180, 105, 600, 310), Color(0.07, 0.08, 0.10, 0.64))
+	draw_rect(Rect2(180, 105, 600, 310), Color(0.82, 0.56, 0.24, 0.34), false, 1.0)
+	draw_string(ThemeDB.fallback_font, Vector2(0, 165), "A GAME OF BAD DECISIONS", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#9299a4"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 225), "LEVEL", HORIZONTAL_ALIGNMENT_CENTER, 960, 42, Color("#e7e4dc"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, 296), "DEVIL", HORIZONTAL_ALIGNMENT_CENTER, 960, 78, Color("#e5a13a"))
+	draw_rect(Rect2(390, 315, 180, 2), Color("#e5a13a"))
+	_draw_button(Rect2(330, 350, 300, 62), "START GAME", true)
+	draw_string(ThemeDB.fallback_font, Vector2(0, 478), "10 ROOMS  /  2 WORLDS  /  ABSOLUTELY NO TRUST", HORIZONTAL_ALIGNMENT_CENTER, 960, 13, Color("#858b96"))
 
 func _draw_world_select() -> void:
 	_draw_back_button()
@@ -520,24 +549,31 @@ func _draw_level_art() -> void:
 	draw_rect(Rect2(0, 430, 960, 110), Color(0.03, 0.035, 0.045, 0.65))
 
 func _draw_hud() -> void:
-	var world: Dictionary = CATALOG.get_world(selected_world)
 	var definition: Dictionary = CATALOG.get_level(selected_world, selected_level)
-	draw_string(ThemeDB.fallback_font, Vector2(26, 37), "WORLD %02d  /  LEVEL %02d" % [selected_world + 1, selected_level + 1], HORIZONTAL_ALIGNMENT_LEFT, 300, 15, Color("#e5a13a"))
-	draw_string(ThemeDB.fallback_font, Vector2(26, 61), str(definition.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, 360, 12, Color("#e7e4dc"))
-	draw_string(ThemeDB.fallback_font, Vector2(480, 39), str(definition.get("hint", "")), HORIZONTAL_ALIGNMENT_CENTER, 480, 12, Color("#8c929e"))
-	draw_string(ThemeDB.fallback_font, Vector2(850, 38), "DEATHS %02d" % deaths, HORIZONTAL_ALIGNMENT_RIGHT, 110, 13, Color("#a7abb4"))
+	draw_rect(Rect2(16, 14, 928, 62), Color(0.055, 0.065, 0.08, 0.88))
+	draw_rect(Rect2(16, 14, 928, 62), Color(0.65, 0.68, 0.74, 0.18), false, 1.0)
+	draw_rect(Rect2(16, 14, 4, 62), Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(32, 38), "WORLD %02d  /  LEVEL %02d" % [selected_world + 1, selected_level + 1], HORIZONTAL_ALIGNMENT_LEFT, 300, 14, Color("#e5a13a"))
+	draw_string(ThemeDB.fallback_font, Vector2(32, 59), str(definition.get("name", "")), HORIZONTAL_ALIGNMENT_LEFT, 360, 12, Color("#e7e4dc"))
+	draw_string(ThemeDB.fallback_font, Vector2(480, 45), str(definition.get("hint", "")), HORIZONTAL_ALIGNMENT_CENTER, 400, 12, Color("#a0a6b0"))
+	draw_string(ThemeDB.fallback_font, Vector2(850, 38), "DEATHS %02d" % deaths, HORIZONTAL_ALIGNMENT_RIGHT, 90, 12, Color("#a7abb4"))
 	if toast_time > 0.0 and toast != "":
-		draw_string(ThemeDB.fallback_font, Vector2(0, 110), toast, HORIZONTAL_ALIGNMENT_CENTER, 960, 15, Color("#f0c16c"))
+		draw_rect(Rect2(210, 91, 540, 34), Color(0.07, 0.08, 0.10, 0.90))
+		draw_rect(Rect2(210, 91, 3, 34), Color("#e5a13a"))
+		draw_string(ThemeDB.fallback_font, Vector2(220, 113), toast, HORIZONTAL_ALIGNMENT_CENTER, 520, 13, Color("#f0c16c"))
 
 func _draw_touch_controls() -> void:
-	_draw_control(Vector2(68, 476), "‹", touch_left)
-	_draw_control(Vector2(168, 476), "›", touch_right)
-	_draw_control(Vector2(865, 476), "↑", false)
+	draw_rect(Rect2(18, 426, 220, 96), Color(0.04, 0.05, 0.07, 0.40))
+	draw_rect(Rect2(722, 426, 220, 96), Color(0.04, 0.05, 0.07, 0.40))
+	_draw_control(Vector2(72, 474), "‹", touch_left)
+	_draw_control(Vector2(174, 474), "›", touch_right)
+	_draw_control(Vector2(858, 474), "↑", false)
 	_draw_button(Rect2(884, 16, 58, 58), "Ⅱ", false, false)
 
 func _draw_control(center: Vector2, label: String, active: bool) -> void:
-	draw_circle(center, 36, Color(0.07, 0.08, 0.10, 0.78))
-	draw_arc(center, 34, 0.0, TAU, 48, Color("#e5a13a") if active else Color(0.72, 0.74, 0.78, 0.55), 2.0)
+	draw_circle(center + Vector2(0, 3), 38, Color(0, 0, 0, 0.30))
+	draw_circle(center, 35, Color(0.09, 0.10, 0.13, 0.90))
+	draw_arc(center, 33, 0.0, TAU, 48, Color("#e5a13a") if active else Color(0.72, 0.74, 0.78, 0.55), 2.0)
 	draw_string(ThemeDB.fallback_font, center + Vector2(-13, 10), label, HORIZONTAL_ALIGNMENT_CENTER, 26, 28, Color("#f2f0e8"))
 
 func _draw_pause_screen() -> void:
