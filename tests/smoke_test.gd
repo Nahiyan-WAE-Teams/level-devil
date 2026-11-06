@@ -106,6 +106,15 @@ func _run() -> void:
 		quit(1)
 		return
 
+	game.set("highest_completed", 19)
+	game.set("selected_world", 1)
+	game.set("selected_level", 9)
+	game.call("_continue_after_level")
+	if game.get("screen") != "campaign_complete":
+		push_error("Completing level twenty must reach the campaign ending")
+		quit(1)
+		return
+
 	print("LEVEL DEVIL gameplay smoke test passed")
 	game.queue_free()
 	await process_frame
