@@ -22,6 +22,7 @@ var body_bob := 0.0
 var squash := Vector2.ONE
 var blink_timer := 2.5
 var blink_closed := false
+var death_time := 0.0
 
 func _ready() -> void:
 	collision_layer = 1
@@ -35,6 +36,13 @@ func _ready() -> void:
 	add_child(shape)
 
 func _process(delta: float) -> void:
+	if not alive:
+		death_time += delta
+		var fade := clampf(death_time / 0.48, 0.0, 1.0)
+		rotation = lerpf(0.0, TAU * 0.72, fade)
+		modulate.a = 1.0 - fade
+		queue_redraw()
+		return
 	blink_timer -= delta
 	if blink_timer <= 0.0:
 		blink_closed = not blink_closed
@@ -107,12 +115,18 @@ func die() -> void:
 	if not alive:
 		return
 	alive = false
+	death_time = 0.0
+	rotation = 0.0
+	modulate = Color.WHITE
 	died.emit()
 
 func revive(at: Vector2) -> void:
 	global_position = at
 	velocity = Vector2.ZERO
 	alive = true
+	death_time = 0.0
+	rotation = 0.0
+	modulate = Color.WHITE
 	reverse_time = 0.0
 	gravity_flip_time = 0.0
 	gravity_direction = 1.0
